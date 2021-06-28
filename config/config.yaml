@@ -1,0 +1,13 @@
+log:
+  file: /var/log/serverstat.log
+  level: debug
+
+ssh:
+  frequency: 5  # every 1 second
+  default_password: zhouligang
+  default_identityfile: ~/.ssh/id_rsa
+
+servers:
+  list:
+    - hz_aliyun_01
+    - aws_jp_01
