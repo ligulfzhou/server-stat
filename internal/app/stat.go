@@ -1,6 +1,6 @@
 package app
 
-import "term-server-stat/pkg/psutil"
+import "server-stat/pkg/psutil"
 
 type Stat struct {
 	Connected     bool
@@ -11,6 +11,7 @@ type Stat struct {
 	Load          *psutil.AvgStat
 	NetStat       *psutil.NetStats
 	MemStat       *psutil.VirtualMemoryStat
+	HostStat      *psutil.HostInfoStat
 }
 
 func NewEmptyStat(alias string) *Stat {

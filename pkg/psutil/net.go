@@ -84,7 +84,7 @@ func (ps *PSUtils) GetMainInterface() error {
 		if len(sp) < 11 {
 			continue
 		}
-		if sp[2] == "00000000" && sp[7] != "00000000" {
+		if sp[2] == "00000000" && sp[7] != "00000000" && !strings.HasPrefix(sp[0], "docker") {
 			ps.NetworkInterface = sp[0]
 			return nil
 		}

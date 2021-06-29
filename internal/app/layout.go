@@ -2,17 +2,25 @@ package app
 
 import (
 	"github.com/jroimartin/gocui"
+	"log"
 )
 
 func (app *App) Layout(gui *gocui.Gui) error {
-	//for idx, sshConfig := range a.Lsc {
-	//	view, err := gui.SetView(sshConfig.Alias, 2, 3*idx, 80, 3*(idx+1)-2)
-	//	if err != gocui.ErrUnknownView {
-	//		return err
-	//	}
-	//
-	//	fmt.Fprintln(view, "line......")
-	//}
+	maxX, maxY := app.Gui.Size()
+
+	thv, thvErr := app.Gui.SetView(TableHeaderViewName, 0, 0, maxX, 2)
+	tv, tvErr := app.Gui.SetView(TableViewName, 0, 2, maxX, maxY)
+	if tvErr != nil && tvErr != gocui.ErrUnknownView {
+		log.Fatalf("set table_header failed with %s", tvErr.Error())
+	}
+	if thvErr != nil && thvErr != gocui.ErrUnknownView {
+		log.Fatalf("set table_header failed with %s", thvErr.Error())
+	}
+	tv.Frame = false
+	thv.Frame = false
+	thv.FgColor = gocui.ColorBlack
+	thv.BgColor = gocui.ColorGreen
+	go app.RefreshAll()
 
 	return nil
 }

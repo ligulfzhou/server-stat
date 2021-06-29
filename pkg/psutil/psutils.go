@@ -104,7 +104,7 @@ func (ps *PSUtils) Connect() (bool, error) {
 			ps.client = client
 			return true, nil
 		} else {
-			fmt.Println(err.Error())
+			//fmt.Println(err.Error())
 			errMsg += err.Error()
 		}
 	}
@@ -142,7 +142,7 @@ func (ps *PSUtils) Connect() (bool, error) {
 			ps.client = client
 			return true, nil
 		} else {
-			fmt.Println(err.Error())
+			//fmt.Println(err.Error())
 			errMsg += err.Error()
 		}
 	}
@@ -179,12 +179,12 @@ func (ps *PSUtils) Connect() (bool, error) {
 			ps.client = client
 			return true, nil
 		} else {
-			fmt.Println(err.Error())
+			//fmt.Println(err.Error())
 			errMsg += err.Error()
 		}
 	}
 
-	fmt.Printf("connections failed with %s", errMsg)
+	//fmt.Printf("connections failed with %s", errMsg)
 	return false, fmt.Errorf("connections failed with %s", errMsg)
 }
 

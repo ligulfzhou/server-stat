@@ -2,253 +2,274 @@ package app
 
 import (
 	"fmt"
-	"strconv"
-	"term-server-stat/pkg/humanize"
-	"term-server-stat/pkg/table"
-	"time"
+	"github.com/jroimartin/gocui"
+	"server-stat/pkg/humanize"
+	"server-stat/pkg/pad"
+	"strings"
 )
+
+const dots = "..."
+
+type RowCell struct {
+	LeftMargin  int
+	RightMargin int
+	Width       int
+	LeftAlign   bool
+	Color       func(a ...interface{}) string
+	Text        string
+}
 
 // SupportedCoinTableHeaders are all the supported coin table header columns
 var tableHeaders = []string{
-	"alias",
-	"ip",
-	"cpu",
-	"load(1/5/15)",
+	"Alias",
+	"Uptime",
+	"Cpu",
+	"Load(1/5/15)",
+	"Mem(free/all)",
+	"Net(total[r/w])",
+	"Net Speed",
+	"Disk(total sectors[r/w])",
+	"Disk IOPS[r,w]",
+	//"Disk Speed",
 }
 
-// GetTableHeaders returns the table headers
-func (app *App) GetTableHeaders() []string {
-	return tableHeaders
-}
+// GetStatTable returns the table for diplaying the coins
+func (app *App) GetStatTable() [][]*RowCell {
+	rows := [][]*RowCell{}
+	app.ClearSyncMap(app.State.tableColumnWidths)
+	app.ClearSyncMap(app.State.tableColumnAlignLeft)
 
-// GetCoinsTable returns the table for diplaying the coins
-func (app *App) GetCoinsTable() *table.Table {
-	maxX, _ := app.Gui.Size()
-	t := table.NewTable().SetWidth(maxX)
-	var rows [][]*table.RowCell
-
-	headers := app.GetTableHeaders()
-
-	ct.ClearSyncMap(ct.State.tableColumnWidths)
-	ct.ClearSyncMap(ct.State.tableColumnAlignLeft)
-	for _, coin := range ct.State.coins {
-		if coin == nil {
-			continue
-		}
-		var rowCells []*table.RowCell
-		for _, header := range headers {
+	stats := app.GetStatList()
+	for _, stat := range stats {
+		rowCells := []*RowCell{}
+		for _, header := range tableHeaders {
 			leftMargin := 1
 			rightMargin := 1
 			switch header {
-			case "rank":
-				star := " "
-				rankcolor := ct.colorscheme.TableRow
-				if coin.Favorite {
-					star = "*"
-					rankcolor = ct.colorscheme.TableRowFavorite
-				}
-				rank := fmt.Sprintf("%s%6v ", star, coin.Rank)
-				ct.SetTableColumnWidth(header, 8)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells, &table.RowCell{
+			case "Alias":
+				txt := TruncateString(stat.Alias, 12)
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, true)
+				rowCells = append(rowCells, &RowCell{
 					LeftMargin:  leftMargin,
 					RightMargin: rightMargin,
 					LeftAlign:   false,
-					Color:       rankcolor,
-					Text:        rank,
+					Color:       nil,
+					Text:        txt,
 				})
-			case "name":
-				name := TruncateString(coin.Name, 16)
-				namecolor := ct.colorscheme.TableRow
-				if coin.Favorite {
-					namecolor = ct.colorscheme.TableRowFavorite
+			case "Uptime":
+				txt := dots
+				if stat.Connected && stat.HostStat != nil {
+					txt = FormatUptime(stat.HostStat.Uptime)
 				}
-				ct.SetTableColumnWidthFromString(header, name)
-				ct.SetTableColumnAlignLeft(header, true)
-				rowCells = append(rowCells, &table.RowCell{
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, true)
+				rowCells = append(rowCells, &RowCell{
 					LeftMargin:  leftMargin,
 					RightMargin: rightMargin,
-					LeftAlign:   true,
-					Color:       namecolor,
-					Text:        name,
+					LeftAlign:   false,
+					Color:       nil,
+					Text:        txt,
 				})
-			case "symbol":
-				symbol := TruncateString(coin.Symbol, 6)
-				ct.SetTableColumnWidthFromString(header, symbol)
-				ct.SetTableColumnAlignLeft(header, true)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   true,
-						Color:       ct.colorscheme.TableRow,
-						Text:        symbol,
-					})
-			case "price":
-				text := humanize.Monetaryf(coin.Price, 2)
-				ct.SetTableColumnWidthFromString(header, text)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       ct.colorscheme.TableColumnPrice,
-						Text:        text,
-					})
-			case "24h_volume":
-				text := humanize.Monetaryf(coin.Volume24H, 0)
-				ct.SetTableColumnWidthFromString(header, text)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       ct.colorscheme.TableRow,
-						Text:        text,
-					})
-			case "1h_change":
-				color1h := ct.colorscheme.TableColumnChange
-				if coin.PercentChange1H > 0 {
-					color1h = ct.colorscheme.TableColumnChangeUp
+			case "Cpu":
+				txt := dots
+				if stat.Connected && stat.CpuCnt != 0 {
+					txt = fmt.Sprintf("%d", stat.CpuCnt)
 				}
-				if coin.PercentChange1H < 0 {
-					color1h = ct.colorscheme.TableColumnChangeDown
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, false)
+				rowCells = append(rowCells, &RowCell{
+					LeftMargin:  leftMargin,
+					RightMargin: rightMargin,
+					LeftAlign:   false,
+					Color:       nil,
+					Text:        txt,
+				})
+			case "Load(1/5/15)":
+				txt := dots
+				if stat.Connected && stat.Load != nil {
+					txt = fmt.Sprintf("%s/%s/%s",
+						humanize.Monetaryf(stat.Load.Load1, 2),
+						humanize.Monetaryf(stat.Load.Load15, 2),
+						humanize.Monetaryf(stat.Load.Load15, 2))
 				}
-				text := fmt.Sprintf("%v%%", humanize.Numericf(coin.PercentChange1H, 2))
-				ct.SetTableColumnWidthFromString(header, text)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       color1h,
-						Text:        text,
-					})
-			case "24h_change":
-				color24h := ct.colorscheme.TableColumnChange
-				if coin.PercentChange24H > 0 {
-					color24h = ct.colorscheme.TableColumnChangeUp
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, false)
+				rowCells = append(rowCells, &RowCell{
+					LeftMargin:  leftMargin,
+					RightMargin: rightMargin,
+					LeftAlign:   false,
+					Color:       nil,
+					Text:        txt,
+				})
+			case "Mem(free/all)":
+				txt := dots
+				if stat.Connected && stat.MemStat != nil {
+					txt = fmt.Sprintf("%s/%s",
+						FormatUsage(stat.MemStat.Free),
+						FormatUsage(stat.MemStat.Total))
 				}
-				if coin.PercentChange24H < 0 {
-					color24h = ct.colorscheme.TableColumnChangeDown
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, false)
+				rowCells = append(rowCells, &RowCell{
+					LeftMargin:  leftMargin,
+					RightMargin: rightMargin,
+					LeftAlign:   false,
+					Color:       nil,
+					Text:        txt,
+				})
+			case "Net(total[r/w])":
+				txt := dots
+				if stat.Connected && stat.NetStat != nil {
+					txt = fmt.Sprintf("%s,%s",
+						FormatUsage(stat.NetStat.RxTotal),
+						FormatUsage(stat.NetStat.TxTotal))
 				}
-				text := fmt.Sprintf("%v%%", humanize.Numericf(coin.PercentChange24H, 2))
-				ct.SetTableColumnWidthFromString(header, text)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       color24h,
-						Text:        text,
-					})
-			case "7d_change":
-				color7d := ct.colorscheme.TableColumnChange
-				if coin.PercentChange7D > 0 {
-					color7d = ct.colorscheme.TableColumnChangeUp
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, false)
+				rowCells = append(rowCells, &RowCell{
+					LeftMargin:  leftMargin,
+					RightMargin: rightMargin,
+					LeftAlign:   false,
+					Color:       nil,
+					Text:        txt,
+				})
+			case "Net Speed":
+				txt := dots
+				if stat.Connected && stat.NetStat != nil {
+					txt = fmt.Sprintf("%s,%s",
+						FormatSpeed(stat.NetStat.RxSpeed),
+						FormatSpeed(stat.NetStat.TxSpeed))
 				}
-				if coin.PercentChange7D < 0 {
-					color7d = ct.colorscheme.TableColumnChangeDown
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, false)
+				rowCells = append(rowCells, &RowCell{
+					LeftMargin:  leftMargin,
+					RightMargin: rightMargin,
+					LeftAlign:   false,
+					Color:       nil,
+					Text:        txt,
+				})
+			case "Disk(total sectors[r/w])":
+				txt := dots
+				if stat.Connected && stat.ProcDiskStats != nil {
+					txt = fmt.Sprintf("%d,%d",
+						stat.ProcDiskStats.SectorsRead,
+						stat.ProcDiskStats.SectorsWritten)
 				}
-				text := fmt.Sprintf("%v%%", humanize.Numericf(coin.PercentChange7D, 2))
-				ct.SetTableColumnWidthFromString(header, text)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       color7d,
-						Text:        text,
-					})
-			case "30d_change":
-				color30d := ct.colorscheme.TableColumnChange
-				if coin.PercentChange30D > 0 {
-					color30d = ct.colorscheme.TableColumnChangeUp
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, false)
+				rowCells = append(rowCells, &RowCell{
+					LeftMargin:  leftMargin,
+					RightMargin: rightMargin,
+					LeftAlign:   false,
+					Color:       nil,
+					Text:        txt,
+				})
+			case "Disk IOPS[r,w]":
+				txt := dots
+				if stat.Connected && stat.ProcDiskStats != nil {
+					txt = fmt.Sprintf("%d,%d",
+						stat.ProcDiskStats.ReadIOPS,
+						stat.ProcDiskStats.WriteIOPS)
 				}
-				if coin.PercentChange30D < 0 {
-					color30d = ct.colorscheme.TableColumnChangeDown
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, false)
+				rowCells = append(rowCells, &RowCell{
+					LeftMargin:  leftMargin,
+					RightMargin: rightMargin,
+					LeftAlign:   false,
+					Color:       nil,
+					Text:        txt,
+				})
+			case "Disk Speed":
+				txt := dots
+				if stat.Connected && stat.ProcDiskStats != nil {
+					txt = fmt.Sprintf("%s,%s",
+						FormatSpeed(stat.ProcDiskStats.ReadSpeed),
+						FormatSpeed(stat.ProcDiskStats.WriteSpeed))
 				}
-				text := fmt.Sprintf("%v%%", humanize.Numericf(coin.PercentChange30D, 2))
-				ct.SetTableColumnWidthFromString(header, text)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       color30d,
-						Text:        text,
-					})
-			case "market_cap":
-				text := humanize.Monetaryf(coin.MarketCap, 0)
-				ct.SetTableColumnWidthFromString(header, text)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       ct.colorscheme.TableRow,
-						Text:        text,
-					})
-			case "total_supply":
-				text := humanize.Numericf(coin.TotalSupply, 0)
-				ct.SetTableColumnWidthFromString(header, text)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       ct.colorscheme.TableRow,
-						Text:        text,
-					})
-			case "available_supply":
-				text := humanize.Numericf(coin.AvailableSupply, 0)
-				ct.SetTableColumnWidthFromString(header, text)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       ct.colorscheme.TableRow,
-						Text:        text,
-					})
-			case "last_updated":
-				unix, _ := strconv.ParseInt(coin.LastUpdated, 10, 64)
-				lastUpdated := time.Unix(unix, 0).Format("15:04:05 Jan 02")
-				ct.SetTableColumnWidthFromString(header, lastUpdated)
-				ct.SetTableColumnAlignLeft(header, false)
-				rowCells = append(rowCells,
-					&table.RowCell{
-						LeftMargin:  leftMargin,
-						RightMargin: rightMargin,
-						LeftAlign:   false,
-						Color:       ct.colorscheme.TableRow,
-						Text:        lastUpdated,
-					})
+				app.SetTableColumnWidthFromString(header, txt)
+				app.SetTableColumnAlignLeft(header, false)
+				rowCells = append(rowCells, &RowCell{
+					LeftMargin:  leftMargin,
+					RightMargin: rightMargin,
+					LeftAlign:   false,
+					Color:       nil,
+					Text:        txt,
+				})
 			}
 		}
 		rows = append(rows, rowCells)
 	}
-
 	for _, row := range rows {
-		for i, header := range headers {
-			row[i].Width = ct.GetTableColumnWidth(header)
+		for idx, header := range tableHeaders {
+			row[idx].Width = app.GetTableColumnWidth(header)
 		}
-		t.AddRowCells(row...)
 	}
-
-	return t
+	return rows
 }
 
-// TableCoinsLen returns the number of coins in coins table
-func (ct *Cointop) TableCoinsLen() int {
-	return len(ct.GetTableCoinsSlice())
+func (app *App) GetStatList() []*Stat {
+	//stats := make([]*Stat, len(app.Cfg.Servers.List))
+	stats := []*Stat{}
+	for _, alias := range app.Cfg.Servers.List {
+		var stat *Stat
+		istat, ok := app.State.Stats.Load(alias)
+		if ok {
+			if tstat, ok := istat.(Stat); ok {
+				stat = &tstat
+			} else {
+				stat = NewEmptyStat(alias)
+			}
+		} else {
+			stat = NewEmptyStat(alias)
+		}
+		//fmt.Printf("stat %v \n", stat)
+		stats = append(stats, stat)
+	}
+	return stats
+}
+
+// RefreshTable read stats and put to table
+func (app *App) RefreshTable() error {
+
+	app.Gui.Update(func(gui *gocui.Gui) error {
+		v, err := app.Gui.View(TableViewName)
+		if err != nil {
+			return err
+		}
+		v.Clear()
+
+		rows := app.GetStatTable()
+		//fmt.Println(rows)
+		for _, row := range rows {
+			//fmt.Println(row)
+			line := []string{}
+			for i, col := range tableHeaders {
+				width := app.GetTableColumnWidth(col)
+
+				leftAlign := app.GetTableColumnAlignLeft(col)
+				padfn := pad.Left
+				padLeft := 1
+				if i == 0 {
+					padLeft = 0
+				}
+				if leftAlign {
+					padfn = pad.Right
+				}
+
+				colStr := fmt.Sprintf(
+					"%s%s%s",
+					strings.Repeat(" ", padLeft),
+					padfn(row[i].Text, width+(1-padLeft), " "),
+					strings.Repeat(" ", 1),
+				)
+				line = append(line, colStr)
+			}
+			fmt.Fprintln(v, strings.Join(line, ""))
+		}
+		return nil
+	})
+	return nil
 }

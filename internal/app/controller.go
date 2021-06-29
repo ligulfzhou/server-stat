@@ -1,10 +1,9 @@
 package app
 
 import (
-	"fmt"
+	"server-stat/internal/config"
+	"server-stat/pkg/psutil"
 	"sync"
-	"term-server-stat/internal/config"
-	"term-server-stat/pkg/psutil"
 )
 
 type Controller struct {
@@ -59,7 +58,6 @@ func (c *Controller) Fetch(uploader chan<- Stat) {
 		if err == nil {
 			stat.CpuCnt = cpuCnt
 		} else {
-			fmt.Printf("get cpucnt %v", err)
 			cnt += 1
 		}
 
@@ -67,7 +65,6 @@ func (c *Controller) Fetch(uploader chan<- Stat) {
 		if err == nil {
 			stat.NetStat = netStat
 		} else {
-			fmt.Printf("get netcnt %v", err)
 			cnt += 1
 		}
 
@@ -75,7 +72,6 @@ func (c *Controller) Fetch(uploader chan<- Stat) {
 		if err == nil {
 			stat.MemStat = memStat
 		} else {
-			fmt.Printf("get memcnt %v", err)
 			cnt += 1
 		}
 
@@ -83,9 +79,18 @@ func (c *Controller) Fetch(uploader chan<- Stat) {
 		if err == nil {
 			stat.Load = loadStat
 		} else {
-			fmt.Printf("get loadcnt %v", err)
 			cnt += 1
 		}
+
+		hostStat, err := c.Psutils.GetHostInfoStat()
+		if err == nil {
+			stat.HostStat = hostStat
+		} else {
+			cnt += 1
+		}
+
+		stat.ProcDiskStats = c.Psutils.GetDiskOverallStats()
+
 		if cnt >= 3 {
 			stat.Connected = false
 			go c.ConnectServer()

@@ -3,9 +3,9 @@ package app
 import (
 	"fmt"
 	"github.com/kevinburke/ssh_config"
+	conf "server-stat/internal/config"
+	"server-stat/pkg/psutil"
 	"strconv"
-	conf "term-server-stat/internal/config"
-	"term-server-stat/pkg/psutil"
 )
 
 // DefaultIdentityFile github.com/kevinburke/ssh_config use following default value

@@ -1,11 +1,10 @@
 package app
 
 import (
-	"fmt"
 	"github.com/jroimartin/gocui"
 	"log"
+	"server-stat/internal/config"
 	"sync"
-	"term-server-stat/internal/config"
 	"time"
 )
 
@@ -13,16 +12,25 @@ type App struct {
 	Cfg           *config.Config
 	refreshMux    sync.Mutex
 	refreshTicker *time.Ticker
-
 	Lsc           *[]SshConfig
 	Ctls          []*Controller
 	Gui           *gocui.Gui
 	StatCollector chan Stat
+
+	State *State
 }
 
 type State struct {
 	Stats sync.Map //map[string]Stat
+
+	tableColumnWidths    sync.Map
+	tableColumnAlignLeft sync.Map
 }
+
+const (
+	TableViewName       = "table"
+	TableHeaderViewName = "table_header"
+)
 
 func NewApp(cfg *config.Config) *App {
 	gui, err := gocui.NewGui(gocui.OutputNormal)
@@ -46,6 +54,12 @@ func NewApp(cfg *config.Config) *App {
 		Cfg:           cfg,
 		Lsc:           &sshConfigs,
 		StatCollector: make(chan Stat),
+
+		State: &State{
+			Stats:                sync.Map{},
+			tableColumnWidths:    sync.Map{},
+			tableColumnAlignLeft: sync.Map{},
+		},
 	}
 	app.Gui.SetManagerFunc(app.Layout)
 
@@ -71,7 +85,7 @@ func NewApp(cfg *config.Config) *App {
 func (app *App) Start() {
 	defer app.Gui.Close()
 
-	for idx := 0; idx < len(app.Ctls); idx++ {
+	for idx, _ := range app.Ctls {
 		go app.Ctls[idx].Start(app.StatCollector)
 	}
 	go app.Refresh()
@@ -88,13 +102,21 @@ func (app *App) Refresh() {
 			for _, ctrl := range app.Ctls {
 				ctrl.Reload <- struct{}{}
 			}
+			go func() {
+				app.RefreshAll()
+			}()
 		case stat := <-app.StatCollector:
 			app.getStat(stat)
 		}
 	}
 }
 
+//store the received stat from controller
 func (app *App) getStat(stat Stat) {
-	fmt.Println(stat)
+	app.State.Stats.Store(stat.Alias, stat)
+}
 
+func (app *App) RefreshAll() {
+	app.RefreshTable()
+	app.UpdateTableHeader()
 }
